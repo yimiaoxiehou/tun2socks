@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 
-	"github.com/yimiaoxiehou/tun2socks/tun2socks"
+	"github.com/yimiaoxiehou/tun2socks"
 )
 
 var tunDevice = flag.String("dev", "demo-tun", "tunDevice name")
