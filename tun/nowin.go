@@ -62,7 +62,7 @@ func GetWaterConf(tunDevName string, tunAddr string, tunMask string) water.Confi
 }
 
 /*windows linux mac use tun dev*/
-func RegTunDev(tunDevice string, tunAddr string, tunMask string) (*water.Interface, error) {
+func RegTunDev(tunDevice string, tunAddr string, tunMask string, tunGW string, tunDNS string) (*water.Interface, error) {
 	if len(tunDevice) == 0 {
 		tunDevice = "utun6"
 	}
@@ -71,6 +71,12 @@ func RegTunDev(tunDevice string, tunAddr string, tunMask string) (*water.Interfa
 	}
 	if len(tunMask) == 0 {
 		tunMask = "255.255.255.0"
+	}
+	if len(tunGW) == 0 {
+		tunGW = "10.0.0.1"
+	}
+	if len(tunDNS) == 0 {
+		tunDNS = "127.0.0.1"
 	}
 
 	config := GetWaterConf(tunDevice, tunAddr, tunMask)

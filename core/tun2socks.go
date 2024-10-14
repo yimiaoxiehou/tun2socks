@@ -21,6 +21,8 @@ type Engine struct {
 	TunDevice string
 	TunAddr   string
 	TunMask   string
+	TunGW     string
+	TunDNS    string
 	Mtu       int
 	Sock5Addr string
 	dev       io.ReadWriteCloser
@@ -31,7 +33,7 @@ type Engine struct {
 
 func (e *Engine) Start() error {
 	var err error
-	e.dev, err = tun.RegTunDev(e.TunDevice, e.TunAddr, e.TunMask)
+	e.dev, err = tun.RegTunDev(e.TunDevice, e.TunAddr, e.TunMask, e.TunGW, e.TunDNS)
 	if err != nil {
 		return err
 	}

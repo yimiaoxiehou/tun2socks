@@ -85,7 +85,7 @@ func RegTunDev(tunDevice string, tunAddr string, tunMask string, tunGW string, t
 		tunGW = "10.0.0.1"
 	}
 	if len(tunDNS) == 0 {
-		tunDNS = "114.114.114.114"
+		tunDNS = "127.0.0.1"
 	}
 	tunDev, err := tun.CreateTUN(tunDevice, 1500)
 	if err != nil {
