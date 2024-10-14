@@ -30,48 +30,66 @@ func NewConn(sock5Addr string) (net.Conn, error) {
 		port = "1080"
 	}
 
+	// 建立到SOCKS5代理服务器的连接
 	socksConn, err := net.Dial("tcp", host+":"+port)
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
 
+	// 发送SOCKS5握手请求
+	// 0x05: SOCKS5版本
+	// 0x01: 支持的认证方法数量
+	// 0x00: 不需要认证方法
 	socksConn.Write([]byte{0x05, 0x01, 0x00})
+
+	// 读取服务器的认证响应
 	authBack := make([]byte, 2)
 	_, err = io.ReadFull(socksConn, authBack)
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
+
+	// 从URL中提取用户名和密码
 	username := parsedURL.User.Username()
 	password, _ := parsedURL.User.Password()
 
-	// Check if server accepts username/password auth
+	// 检查服务器选择的认证方法
 	if authBack[1] == 0x02 {
+		// 服务器要求用户名/密码认证
 		if username == "" || password == "" {
 			return nil, fmt.Errorf("socks5 username and password is empty")
 		}
-		// Username/Password authentication
-		auth := []byte{0x01} // Auth version
+
+		// 构造用户名/密码认证请求
+		auth := []byte{0x01} // 认证子协商版本
 		auth = append(auth, byte(len(username)))
 		auth = append(auth, []byte(username)...)
 		auth = append(auth, byte(len(password)))
 		auth = append(auth, []byte(password)...)
 
+		// 发送认证请求
 		socksConn.Write(auth)
+
+		// 读取认证响应
 		authResponse := make([]byte, 2)
 		_, err = io.ReadFull(socksConn, authResponse)
 		if err != nil {
 			log.Println(err)
 			return nil, err
 		}
+
+		// 检查认证是否成功
 		if authResponse[1] != 0x00 {
 			return nil, fmt.Errorf("authentication failed")
 		}
 	} else if authBack[1] != 0x00 {
+		// 服务器不接受无认证方法，也不接受用户名/密码认证
 		return nil, fmt.Errorf("no acceptable authentication methods")
 	}
 
+	// 认证成功，返回已建立的连接
 	return socksConn, nil
 }
 
