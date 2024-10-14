@@ -8,7 +8,6 @@ import (
 	"log"
 	"net"
 
-	"github.com/yimiaoxiehou/tun2socks/core"
 	"github.com/yimiaoxiehou/tun2socks/socks"
 	"github.com/yimiaoxiehou/tun2socks/tun"
 
