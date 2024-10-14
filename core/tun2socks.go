@@ -33,7 +33,7 @@ func StartTunDevice(tunDevice string, tunAddr string, tunMask string, mtu int, _
 	ForwardTransportFromIo(dev, mtu, rawTcpForwarder)
 }
 
-func rawTcpForwarder(conn core.CommTCPConn) error {
+func rawTcpForwarder(conn CommTCPConn) error {
 	defer conn.Close()
 	socksConn, err1 := socks.NewConn(sock5Addr)
 	if err1 != nil {
@@ -49,8 +49,8 @@ func rawTcpForwarder(conn core.CommTCPConn) error {
 	return nil
 }
 
-func ForwardTransportFromIo(dev io.ReadWriteCloser, mtu int, tcpCallback core.ForwarderCall) error {
-	_, channelLinkID, err := core.NewDefaultStack(mtu, tcpCallback)
+func ForwardTransportFromIo(dev io.ReadWriteCloser, mtu int, tcpCallback ForwarderCall) error {
+	_, channelLinkID, err := NewDefaultStack(mtu, tcpCallback)
 	if err != nil {
 		log.Printf("err:%v", err)
 		return err
