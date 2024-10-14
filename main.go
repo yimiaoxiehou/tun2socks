@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"time"
 
 	"github.com/yimiaoxiehou/tun2socks/core"
 )
@@ -15,5 +17,23 @@ var socksAddr = flag.String("proxy", "socks5://127.0.0.1:1080", "socksAddr")
 func main() {
 	flag.Parse()
 
-	core.StartTunDevice(*tunDevice, *tunAddr, *netmask, *mtu, *socksAddr)
+	e := &core.Engine{
+		TunDevice: *tunDevice,
+		TunAddr:   *tunAddr,
+		TunMask:   *netmask,
+		Mtu:       *mtu,
+		Sock5Addr: *socksAddr,
+	}
+	go func() {
+		time.Sleep(10 * time.Second)
+		if err := e.Stop(); err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println("stop")
+	}()
+	err := e.Start()
+	if err != nil {
+		fmt.Println(err)
+	}
+	time.Sleep(60 * time.Second)
 }
