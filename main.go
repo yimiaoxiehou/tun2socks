@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+
+	"github.com/yimiaoxiehou/tun2socks/core"
 )
 
 var tunDevice = flag.String("dev", "demo-tun", "tunDevice name")
@@ -13,5 +15,5 @@ var socksAddr = flag.String("proxy", "socks5://127.0.0.1:1080", "socksAddr")
 func main() {
 	flag.Parse()
 
-	StartTunDevice(*tunDevice, *tunAddr, *netmask, *mtu, *socksAddr)
+	core.StartTunDevice(*tunDevice, *tunAddr, *netmask, *mtu, *socksAddr)
 }
