@@ -29,15 +29,10 @@ func main() {
 		Sock5Addr: *socksAddr,
 	}
 	go func() {
-		time.Sleep(10 * time.Second)
-		if err := e.Stop(); err != nil {
+		err := e.Start()
+		if err != nil {
 			fmt.Println(err)
 		}
-		fmt.Println("stop")
 	}()
-	err := e.Start()
-	if err != nil {
-		fmt.Println(err)
-	}
-	time.Sleep(60 * time.Second)
+	time.Sleep(1000 * time.Second)
 }
