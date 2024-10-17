@@ -64,18 +64,48 @@ func (e *Engine) Stop() error {
 }
 
 func (e *Engine) rawTcpForwarder(conn CommTCPConn) error {
-	defer conn.Close()
-	socksConn, err1 := socks.NewConn(e.Sock5Addr)
-	if err1 != nil {
-		log.Println(err1)
-		return nil
-	}
-	defer socksConn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.Printf("Error closing CommTCPConn: %v", err)
+		}
+	}()
 
-	if socks.SocksCmd(socksConn, uint8(socks.SOCKS5_CONNECT_CMD), conn.LocalAddr().String()) == nil {
-		go io.Copy(socksConn, conn)
-		io.Copy(conn, socksConn)
+	socksConn, err := socks.NewConn(e.Sock5Addr)
+	if err != nil {
+		log.Printf("Error creating SOCKS connection: %v", err)
+		return err
 	}
+	defer func() {
+		if err := socksConn.Close(); err != nil {
+			log.Printf("Error closing SOCKS connection: %v", err)
+		}
+	}()
+
+	if err := socks.SocksCmd(socksConn, uint8(socks.SOCKS5_CONNECT_CMD), conn.LocalAddr().String()); err != nil {
+		log.Printf("SOCKS command failed: %v", err)
+		return err
+	}
+
+	errChan := make(chan error, 2)
+
+	go func() {
+		_, err := io.Copy(socksConn, conn)
+		errChan <- err
+	}()
+
+	go func() {
+		_, err := io.Copy(conn, socksConn)
+		errChan <- err
+	}()
+
+	// Wait for both goroutines to finish
+	for i := 0; i < 2; i++ {
+		if err := <-errChan; err != nil && err != io.EOF {
+			log.Printf("Error in data transfer: %v", err)
+			return err
+		}
+	}
+
 	return nil
 }
 
