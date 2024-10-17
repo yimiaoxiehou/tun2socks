@@ -2,10 +2,11 @@ package core
 
 import (
 	"context"
-	"io"
-	"log"
 	"net"
 	"time"
+
+	"io"
+	"log"
 
 	"github.com/yimiaoxiehou/tun2socks/socks"
 	"github.com/yimiaoxiehou/tun2socks/tun"
@@ -106,14 +107,12 @@ func (e *Engine) rawTcpForwarder(conn CommTCPConn) error {
 	go func() {
 		_, err := io.Copy(socksConn, conn)
 		errChan <- err
-		conn.(*net.TCPConn).CloseRead()
 		socksConn.(*net.TCPConn).CloseWrite()
 	}()
 
 	go func() {
 		_, err := io.Copy(conn, socksConn)
 		errChan <- err
-		conn.(*net.TCPConn).CloseWrite()
 		socksConn.(*net.TCPConn).CloseRead()
 	}()
 
