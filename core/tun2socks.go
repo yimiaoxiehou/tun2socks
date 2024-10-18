@@ -15,8 +15,6 @@ import (
 
 	"gvisor.dev/gvisor/pkg/buffer"
 
-	"sync"
-
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
@@ -32,7 +30,6 @@ type Engine struct {
 	dev       io.ReadWriteCloser
 	ctx       context.Context
 	cancel    context.CancelFunc
-	wg        sync.WaitGroup
 }
 
 // Start initializes and starts the tun2socks engine.
@@ -50,13 +47,9 @@ func (e *Engine) Start() error {
 	// Create a cancellable context for the engine
 	e.ctx, e.cancel = context.WithCancel(context.Background())
 
-	// Increment the wait group counter
-	e.wg.Add(1)
-
 	// Start the main processing goroutine
 	go func() {
 		// Ensure the wait group counter is decremented when the goroutine exits
-		defer e.wg.Done()
 
 		// Start forwarding transport from IO
 		err := e.ForwardTransportFromIo(e.ctx, e.dev, e.rawTcpForwarder, e.rawUdpForwarder)
@@ -74,7 +67,6 @@ func (e *Engine) Stop() error {
 	if e.cancel != nil {
 		e.cancel()
 	}
-	e.wg.Wait()
 	if e.dev != nil {
 		err := e.dev.Close()
 		if err != nil {
