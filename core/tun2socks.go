@@ -2,11 +2,13 @@ package core
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"net"
+	"strings"
 	"time"
 
 	"io"
-	"log"
 
 	"github.com/yimiaoxiehou/tun2socks/socks"
 	"github.com/yimiaoxiehou/tun2socks/tun"
@@ -37,8 +39,10 @@ type Engine struct {
 func (e *Engine) Start() error {
 	var err error
 
+	log.Println("Start")
+
 	// Register and initialize the TUN device
-	e.dev, err = tun.RegTunDev(e.TunDevice, e.TunAddr, e.TunMask, e.TunGW, e.TunDNS)
+	e.dev, err = tun.RegTunDev(e.TunDevice, e.Mtu, e.TunAddr, e.TunMask, e.TunGW, e.TunDNS)
 	if err != nil {
 		return err // Return error if TUN device initialization fails
 	}
@@ -55,7 +59,7 @@ func (e *Engine) Start() error {
 		defer e.wg.Done()
 
 		// Start forwarding transport from IO
-		err := e.ForwardTransportFromIo(e.ctx, e.dev, e.rawTcpForwarder)
+		err := e.ForwardTransportFromIo(e.ctx, e.dev, e.rawTcpForwarder, e.rawUdpForwarder)
 
 		// Log any errors that occur during forwarding, except for context cancellation
 		if err != nil && err != context.Canceled {
@@ -76,6 +80,15 @@ func (e *Engine) Stop() error {
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (e *Engine) rawUdpForwarder(conn CommUDPConn, ep CommEndpoint) error {
+	defer conn.Close()
+	//dns port
+	if strings.HasSuffix(conn.LocalAddr().String(), ":53") {
+		dnsReq(conn, "udp", "127.0.0.1:53")
 	}
 	return nil
 }
@@ -134,12 +147,15 @@ func (e *Engine) rawTcpForwarder(conn CommTCPConn) error {
 	return nil
 }
 
-func (e *Engine) ForwardTransportFromIo(ctx context.Context, dev io.ReadWriter, tcpCallback ForwarderCall) error {
-	_, channelLinkID, err := NewDefaultStack(e.Mtu, tcpCallback)
+func (e *Engine) ForwardTransportFromIo(ctx context.Context, dev io.ReadWriter, tcpCallback ForwarderCall, udpCallback UdpForwarderCall) error {
+	_, channelLinkID, err := NewDefaultStack(e.Mtu, tcpCallback, udpCallback)
 	if err != nil {
 		log.Printf("err:%v", err)
 		return err
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// write tun
 	go func(_ctx context.Context) {
@@ -149,8 +165,7 @@ func (e *Engine) ForwardTransportFromIo(ctx context.Context, dev io.ReadWriter, 
 				log.Printf("channelLinkID exit \r\n")
 				break
 			}
-			view := info.ToView()
-			view.WriteTo(e.dev)
+			info.ToView().WriteTo(dev)
 			info.DecRef()
 		}
 	}(ctx)
@@ -159,29 +174,70 @@ func (e *Engine) ForwardTransportFromIo(ctx context.Context, dev io.ReadWriter, 
 	var buf = make([]byte, e.Mtu+80)
 	var recvLen = 0
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			recvLen, err = dev.Read(buf[:])
-			if err != nil {
-				if err == io.EOF || err == io.ErrClosedPipe {
-					return nil // Normal closure
-				}
-				return err
-			}
+		recvLen, err = dev.Read(buf[:])
+		if err != nil {
+			log.Printf("err:%v", err)
+			break
+		}
 
-			pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
-				Payload: buffer.MakeWithData(buf[:recvLen]),
-			})
+		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
+			Payload: buffer.MakeWithData(buf[:recvLen]),
+		})
 
-			switch header.IPVersion(buf) {
-			case header.IPv4Version:
-				channelLinkID.InjectInbound(header.IPv4ProtocolNumber, pkt)
-			case header.IPv6Version:
-				channelLinkID.InjectInbound(header.IPv6ProtocolNumber, pkt)
-			}
-			pkt.DecRef()
+		switch header.IPVersion(buf) {
+		case header.IPv4Version:
+			channelLinkID.InjectInbound(header.IPv4ProtocolNumber, pkt)
+		case header.IPv6Version:
+			channelLinkID.InjectInbound(header.IPv6ProtocolNumber, pkt)
+		}
+		pkt.DecRef()
+	}
+	return nil
+}
+
+/*to dns*/
+func dnsReq(conn CommUDPConn, action string, dnsAddr string) error {
+	if action == "tcp" {
+		dnsConn, err := net.Dial(action, dnsAddr)
+		if err != nil {
+			fmt.Println(err.Error())
+			return err
+		}
+		defer dnsConn.Close()
+		go io.Copy(conn, dnsConn)
+		io.Copy(dnsConn, conn)
+		fmt.Printf("dnsReq Tcp\r\n")
+		return nil
+	} else {
+		buf := make([]byte, 4096)
+		var n = 0
+		var err error
+		n, err = conn.Read(buf)
+		if err != nil {
+			fmt.Printf("c.Read() = %v", err)
+			return err
+		}
+		dnsConn, err := net.Dial("udp", dnsAddr)
+		if err != nil {
+			fmt.Println(err.Error())
+			return err
+		}
+		defer dnsConn.Close()
+		_, err = dnsConn.Write(buf[:n])
+		if err != nil {
+			fmt.Println(err.Error())
+			return err
+		}
+		n, err = dnsConn.Read(buf)
+		if err != nil {
+			fmt.Println(err.Error())
+			return err
+		}
+		_, err = conn.Write(buf[:n])
+		if err != nil {
+			fmt.Println(err.Error())
+			return err
 		}
 	}
+	return nil
 }

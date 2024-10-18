@@ -62,7 +62,7 @@ func GetWaterConf(tunDevName string, tunAddr string, tunMask string) water.Confi
 }
 
 /*windows linux mac use tun dev*/
-func RegTunDev(tunDevice string, tunAddr string, tunMask string, tunGW string, tunDNS string) (*water.Interface, error) {
+func RegTunDev(tunDevice string, mtu int, tunAddr string, tunMask string, tunGW string, tunDNS string) (*water.Interface, error) {
 	if len(tunDevice) == 0 {
 		tunDevice = "utun6"
 	}
@@ -116,11 +116,15 @@ func RegTunDevTest(tunDevice string, tunAddr string, tunMask string, tunDNS stri
 	if len(tunDNS) == 0 {
 		tunDNS = "114.114.114.114"
 	}
-	tunDev, err := tun.CreateTUN(tunDevice, 1500)
+	mtu := 1500 // Default MTU, adjust if needed
+	tunDev, err := tun.CreateTUN(tunDevice, mtu)
 	if err != nil {
 		return nil, err
 	}
-	tunDevName, _ := tunDev.Name()
+	tunDevName, err := tunDev.Name()
+	if err != nil {
+		return nil, err
+	}
 	if runtime.GOOS == "linux" {
 		//sudo ip addr add 10.1.0.10/24 dev O_O
 		masks := net.ParseIP(tunMask).To4()

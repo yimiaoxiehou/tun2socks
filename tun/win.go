@@ -71,7 +71,7 @@ func init() {
 }
 
 /*windows use wintun*/
-func RegTunDev(tunDevice string, tunAddr string, tunMask string, tunGW string, tunDNS string) (*DevReadWriteCloser, error) {
+func RegTunDev(tunDevice string, mtu int, tunAddr string, tunMask string, tunGW string, tunDNS string) (*DevReadWriteCloser, error) {
 	if len(tunDevice) == 0 {
 		tunDevice = "socksTun0"
 	}
@@ -85,16 +85,16 @@ func RegTunDev(tunDevice string, tunAddr string, tunMask string, tunGW string, t
 		tunGW = "10.0.0.1"
 	}
 	if len(tunDNS) == 0 {
-		tunDNS = "127.0.0.1"
+		tunDNS = "114.114.114.114"
 	}
-	tunDev, err := tun.CreateTUN(tunDevice, 1500)
+	tunDev, err := tun.CreateTUN(tunDevice, mtu)
 	if err != nil {
 		return nil, err
 	}
-	setInterfaceAddress4(tunDev.(*tun.NativeTun), tunAddr, tunMask, tunGW, tunDNS)
+	setInterfaceAddress4(tunDev.(*tun.NativeTun), tunAddr, tunMask, tunDNS)
 	return &DevReadWriteCloser{tunDev.(*tun.NativeTun)}, nil
 }
-func setInterfaceAddress4(tunDev *tun.NativeTun, addr, mask, gateway, tunDNS string) error {
+func setInterfaceAddress4(tunDev *tun.NativeTun, addr, mask, tunDNS string) error {
 	luid := winipcfg.LUID(tunDev.LUID())
 	ipnet := net.IPNet{
 		IP:   net.ParseIP(addr).To4(),
@@ -111,29 +111,6 @@ func setInterfaceAddress4(tunDev *tun.NativeTun, addr, mask, gateway, tunDNS str
 	}
 
 	err = luid.SetDNS(windows.AF_INET, []netip.Addr{netip.MustParseAddr(tunDNS)}, []string{})
-	return err
-}
-
-// setInterfaceAddress6 is ...
-func setInterfaceAddress6(tunDev *tun.NativeTun, addr, mask, gateway, tunDNS string) error {
-	luid := winipcfg.LUID(tunDev.LUID())
-
-	ipnet := net.IPNet{
-		IP:   net.ParseIP(addr).To16(),
-		Mask: net.IPMask(net.ParseIP(mask).To16()),
-	}
-	addresses := append([]netip.Prefix{}, netip.MustParsePrefix(ipnet.String()))
-
-	err := luid.SetIPAddressesForFamily(windows.AF_INET6, addresses)
-	if errors.Is(err, windows.ERROR_OBJECT_ALREADY_EXISTS) {
-		cleanupAddressesOnDisconnectedInterfaces(windows.AF_INET6, addresses)
-		err = luid.SetIPAddressesForFamily(windows.AF_INET6, addresses)
-	}
-	if err != nil {
-		return err
-	}
-
-	err = luid.SetDNS(windows.AF_INET6, []netip.Addr{netip.MustParseAddr(tunDNS)}, []string{})
 	return err
 }
 

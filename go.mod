@@ -7,7 +7,7 @@ toolchain go1.22.2
 require (
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
 	golang.org/x/crypto v0.24.0
-	golang.org/x/sys v0.21.0
+	golang.org/x/sys v0.26.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	golang.zx2c4.com/wireguard/windows v0.5.3
 	gvisor.dev/gvisor v0.0.0-20240521174809-5eedbf551134
