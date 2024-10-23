@@ -90,8 +90,8 @@ func (e *Engine) rawTcpForwarder(conn CommTCPConn) error {
 		log.Printf("Error creating SOCKS connection: %v", err)
 		return err
 	}
-	defer socksConn.(*net.TCPConn).Close()
 	defer func() {
+		log.Println("Close conn " + conn.LocalAddr().String())
 		if err := conn.Close(); err != nil && err != io.EOF {
 			log.Printf("Error closing CommTCPConn: %v", err)
 		}
@@ -119,7 +119,7 @@ func (e *Engine) rawTcpForwarder(conn CommTCPConn) error {
 	}()
 
 	for i := 0; i < 2; i++ {
-		if err := <-errChan; err != nil && err != io.EOF {
+		if err := <-errChan; err != nil {
 			log.Printf("Error in data transfer: %v", err)
 		}
 	}
