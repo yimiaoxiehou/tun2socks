@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"strings"
-	"time"
 
 	"io"
 
@@ -91,7 +90,7 @@ func (e *Engine) rawTcpForwarder(conn CommTCPConn) error {
 		log.Printf("Error creating SOCKS connection: %v", err)
 		return err
 	}
-
+	defer socksConn.(*net.TCPConn).Close()
 	defer func() {
 		if err := conn.Close(); err != nil && err != io.EOF {
 			log.Printf("Error closing CommTCPConn: %v", err)
@@ -101,41 +100,29 @@ func (e *Engine) rawTcpForwarder(conn CommTCPConn) error {
 		}
 	}()
 
+	log.Println("connect to " + conn.LocalAddr().String())
 	if err := socks.SocksCmd(socksConn, uint8(socks.SOCKS5_CONNECT_CMD), conn.LocalAddr().String()); err != nil {
 		log.Printf("SOCKS command failed: %v", err)
 		return err
 	}
 
 	errChan := make(chan error, 2)
-	done := make(chan struct{})
 
 	go func() {
 		_, err := io.Copy(socksConn, conn)
 		errChan <- err
-		socksConn.(*net.TCPConn).CloseWrite()
 	}()
 
 	go func() {
 		_, err := io.Copy(conn, socksConn)
 		errChan <- err
-		socksConn.(*net.TCPConn).CloseRead()
 	}()
 
-	go func() {
-		for i := 0; i < 2; i++ {
-			if err := <-errChan; err != nil && err != io.EOF {
-				log.Printf("Error in data transfer: %v", err)
-			}
+	for i := 0; i < 2; i++ {
+		if err := <-errChan; err != nil && err != io.EOF {
+			log.Printf("Error in data transfer: %v", err)
 		}
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(5 * time.Minute):
-		log.Println("TCP connection timed out")
 	}
-
 	return nil
 }
 
