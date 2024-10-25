@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"os/exec"
 	"runtime"
 	"unsafe"
 
@@ -71,7 +72,7 @@ func init() {
 }
 
 /*windows use wintun*/
-func RegTunDev(tunDevice string, mtu int, tunAddr string, tunMask string, tunGW string, tunDNS string) (*DevReadWriteCloser, error) {
+func RegTunDev(tunDevice string, mtu int, tunAddr string, tunMask string, routers []string) (*DevReadWriteCloser, error) {
 	if len(tunDevice) == 0 {
 		tunDevice = "socksTun0"
 	}
@@ -81,20 +82,18 @@ func RegTunDev(tunDevice string, mtu int, tunAddr string, tunMask string, tunGW 
 	if len(tunMask) == 0 {
 		tunMask = "255.255.255.0"
 	}
-	if len(tunGW) == 0 {
-		tunGW = "10.0.0.1"
-	}
-	if len(tunDNS) == 0 {
-		tunDNS = "114.114.114.114"
-	}
 	tunDev, err := tun.CreateTUN(tunDevice, mtu)
 	if err != nil {
 		return nil, err
 	}
-	setInterfaceAddress4(tunDev.(*tun.NativeTun), tunAddr, tunMask, tunDNS)
+	setInterfaceAddress4(tunDev.(*tun.NativeTun), tunAddr, tunMask)
+	for _, router := range routers {
+		CmdHide("route", "add", router, tunAddr).Run()
+	}
 	return &DevReadWriteCloser{tunDev.(*tun.NativeTun)}, nil
 }
-func setInterfaceAddress4(tunDev *tun.NativeTun, addr, mask, tunDNS string) error {
+
+func setInterfaceAddress4(tunDev *tun.NativeTun, addr, mask string) error {
 	luid := winipcfg.LUID(tunDev.LUID())
 	ipnet := net.IPNet{
 		IP:   net.ParseIP(addr).To4(),
@@ -106,12 +105,11 @@ func setInterfaceAddress4(tunDev *tun.NativeTun, addr, mask, tunDNS string) erro
 		cleanupAddressesOnDisconnectedInterfaces(windows.AF_INET, addresses)
 		err = luid.SetIPAddressesForFamily(windows.AF_INET, addresses)
 	}
-	if err != nil {
-		return err
-	}
-
-	err = luid.SetDNS(windows.AF_INET, []netip.Addr{netip.MustParseAddr(tunDNS)}, []string{})
 	return err
+}
+
+func CmdHide(name string, arg ...string) *exec.Cmd {
+	return exec.Command(name, arg...)
 }
 
 func determineGUID(name string) *windows.GUID {

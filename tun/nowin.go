@@ -62,7 +62,7 @@ func GetWaterConf(tunDevName string, tunAddr string, tunMask string) water.Confi
 }
 
 /*windows linux mac use tun dev*/
-func RegTunDev(tunDevice string, mtu int, tunAddr string, tunMask string, tunGW string, tunDNS string) (*water.Interface, error) {
+func RegTunDev(tunDevice string, mtu int, tunAddr string, tunMask string) (*water.Interface, error) {
 	if len(tunDevice) == 0 {
 		tunDevice = "utun6"
 	}
@@ -71,12 +71,6 @@ func RegTunDev(tunDevice string, mtu int, tunAddr string, tunMask string, tunGW 
 	}
 	if len(tunMask) == 0 {
 		tunMask = "255.255.255.0"
-	}
-	if len(tunGW) == 0 {
-		tunGW = "10.0.0.1"
-	}
-	if len(tunDNS) == 0 {
-		tunDNS = "127.0.0.1"
 	}
 
 	config := GetWaterConf(tunDevice, tunAddr, tunMask)
@@ -103,7 +97,7 @@ func RegTunDev(tunDevice string, mtu int, tunAddr string, tunMask string, tunGW 
 }
 
 /*windows use wintun*/
-func RegTunDevTest(tunDevice string, tunAddr string, tunMask string, tunDNS string) (*DevReadWriteCloser, error) {
+func RegTunDevTest(tunDevice string, tunAddr string, tunMask string, routers []string) (*DevReadWriteCloser, error) {
 	if len(tunDevice) == 0 {
 		tunDevice = "socksTun0"
 	}
@@ -112,9 +106,6 @@ func RegTunDevTest(tunDevice string, tunAddr string, tunMask string, tunDNS stri
 	}
 	if len(tunMask) == 0 {
 		tunMask = "255.255.255.0"
-	}
-	if len(tunDNS) == 0 {
-		tunDNS = "114.114.114.114"
 	}
 	mtu := 1500 // Default MTU, adjust if needed
 	tunDev, err := tun.CreateTUN(tunDevice, mtu)
@@ -131,12 +122,18 @@ func RegTunDevTest(tunDevice string, tunAddr string, tunMask string, tunDNS stri
 		maskAddr := net.IPNet{IP: net.ParseIP(tunAddr), Mask: net.IPv4Mask(masks[0], masks[1], masks[2], masks[3])}
 		CmdHide("ip", "addr", "add", maskAddr.String(), "dev", tunDevName).Run()
 		CmdHide("ip", "link", "set", "dev", tunDevName, "up").Run()
+		for _, router := range routers {
+			CmdHide("ip", "route", "add", router, "dev", tunDevName).Run()
+		}
 	} else if runtime.GOOS == "darwin" {
 		//ifconfig utun2 10.1.0.10 10.1.0.20 up
 		masks := net.ParseIP(tunMask).To4()
 		maskAddr := net.IPNet{IP: net.ParseIP(tunAddr), Mask: net.IPv4Mask(masks[0], masks[1], masks[2], masks[3])}
 		ipMin, ipMax := GetCidrIpRange(maskAddr.String())
 		CmdHide("ifconfig", tunDevName, ipMin, ipMax, "up").Run()
+		for _, router := range routers {
+			CmdHide("route", "add", router, "-interface", tunDevName).Run()
+		}
 	}
 	return &DevReadWriteCloser{tunDev.(*tun.NativeTun)}, nil
 }

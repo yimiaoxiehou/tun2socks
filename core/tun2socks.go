@@ -22,10 +22,9 @@ type Engine struct {
 	TunDevice string
 	TunAddr   string
 	TunMask   string
-	TunGW     string
-	TunDNS    string
 	Mtu       int
 	Sock5Addr string
+	Routers   []string
 	dev       io.ReadWriteCloser
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -38,7 +37,7 @@ func (e *Engine) Start() error {
 	log.Println("Start")
 
 	// Register and initialize the TUN device
-	e.dev, err = tun.RegTunDev(e.TunDevice, e.Mtu, e.TunAddr, e.TunMask, e.TunGW, e.TunDNS)
+	e.dev, err = tun.RegTunDev(e.TunDevice, e.Mtu, e.TunAddr, e.TunMask, e.Routers)
 	if err != nil {
 		return err // Return error if TUN device initialization fails
 	}
