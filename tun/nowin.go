@@ -62,7 +62,7 @@ func GetWaterConf(tunDevName string, tunAddr string, tunMask string) water.Confi
 }
 
 /*windows linux mac use tun dev*/
-func RegTunDev(tunDevice string, mtu int, tunAddr string, tunMask string) (*water.Interface, error) {
+func RegTunDev(tunDevice string, mtu int, tunAddr string, tunMask string, routers []string) (*water.Interface, error) {
 	if len(tunDevice) == 0 {
 		tunDevice = "utun6"
 	}
@@ -86,12 +86,18 @@ func RegTunDev(tunDevice string, mtu int, tunAddr string, tunMask string) (*wate
 		maskAddr := net.IPNet{IP: net.ParseIP(tunAddr), Mask: net.IPv4Mask(masks[0], masks[1], masks[2], masks[3])}
 		CmdHide("ip", "addr", "add", maskAddr.String(), "dev", ifce.Name()).Run()
 		CmdHide("ip", "link", "set", "dev", ifce.Name(), "up").Run()
+		for _, r := range routers {
+			CmdHide("ip", "r", "add", r, "via", tunAddr).Run()
+		}
 	} else if runtime.GOOS == "darwin" {
 		//ifconfig utun2 10.1.0.10 10.1.0.20 up
 		masks := net.ParseIP(tunMask).To4()
 		maskAddr := net.IPNet{IP: net.ParseIP(tunAddr), Mask: net.IPv4Mask(masks[0], masks[1], masks[2], masks[3])}
 		ipMin, ipMax := GetCidrIpRange(maskAddr.String())
 		CmdHide("ifconfig", ifce.Name(), ipMin, ipMax, "up").Run()
+		for _, r := range routers {
+			CmdHide("ip", "r", "add", r, "via", tunAddr).Run()
+		}
 	}
 	return ifce, nil
 }
